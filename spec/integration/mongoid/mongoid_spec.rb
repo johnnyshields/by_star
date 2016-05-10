@@ -37,21 +37,6 @@ describe 'Mongoid' do
     subject { Post.between_times(Time.zone.parse('2014-01-01'), Time.zone.parse('2014-01-06')) }
     it { should be_a(Mongoid::Criteria) }
     it { expect(subject.count).to eql(3) }
-
-    context ':order option' do
-
-      it 'should be able to order the result set asc' do
-        scope = Post.by_year(Time.zone.now.year, :order => :asc)
-        expect(scope.options[:sort]).to eq({'created_at' => 1})
-        expect(scope.first.created_at).to eq Time.zone.parse('2014-01-01 17:00:00')
-      end
-
-      it 'should be able to order the result set desc' do
-        scope = Post.by_year(Time.zone.now.year, :order => :desc)
-        expect(scope.options[:sort]).to eq({'created_at' => -1})
-        expect(scope.first.created_at).to eq Time.zone.parse('2014-04-15 17:00:00')
-      end
-    end
   end
 
   describe '#between' do

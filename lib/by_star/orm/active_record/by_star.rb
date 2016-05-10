@@ -5,29 +5,22 @@ module ByStar
     module ClassMethods
       include ::ByStar::Base
 
-      # Returns all records between a given start and finish time.
-      #
-      # Currently only supports Time objects.
-      def between_times_query(start, finish, options={})
-        start_field = by_star_start_field(options)
-        end_field = by_star_end_field(options)
+      protected
 
-        scope = by_star_scope(options)
-        scope = if options[:strict] || start_field == end_field
-          scope.where("#{start_field} >= ? AND #{end_field} <= ?", start, finish)
-        else
-          scope.where("#{end_field} > ? AND #{start_field} < ?", start, finish)
-        end
-        scope = scope.order(options[:order]) if options[:order]
+      def by_star_point_query(scope, field, range)
+        scope.where("#{field} >= ? AND #{field} <= ?", range.first, range.last)
+      end
+
+      def by_star_strict_span_query(scope, start_field, end_field, range)
+        scope.where("#{start_field} >= ? AND #{start_field} <= ? AND #{end_field} >= ? AND #{end_field} <= ?", range.first, range.last, range.first, range.last)
+      end
+
+      def by_star_overlap_span_query(scope, start_field, end_field, range, options)
+        index_start = by_star_eval_index_start(range, options)
+        scope = scope.where("#{end_field} > ? AND #{start_field} < ?", range.first, range.last)
+        scope = scope.where("#{start_field} >= ?", index_start) if index_start
         scope
       end
-
-      def between(*args)
-        ActiveSupport::Deprecation.warn 'ByStar `between` method will be removed in v3.0.0. Please use `between_times`'
-        between_times(*args)
-      end
-
-      protected
 
       def by_star_default_field
         "#{self.table_name}.created_at"

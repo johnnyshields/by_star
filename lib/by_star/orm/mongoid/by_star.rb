@@ -9,19 +9,7 @@ module Mongoid
     module ClassMethods
       include ::ByStar::Base
 
-      def between_times_query(start, finish, options={})
-        start_field = by_star_start_field(options)
-        end_field = by_star_end_field(options)
-
-        scope = by_star_scope(options)
-        scope = if options[:strict] || start_field == end_field
-          scope.gte(start_field => start).lte(end_field => finish)
-        else
-          scope.gt(end_field => start).lt(start_field => finish)
-        end
-        scope = scope.order_by(start_field => options[:order]) if options[:order]
-        scope
-      end
+      protected
 
       def by_star_end_field_with_mongoid(options = {})
         database_field_name by_star_end_field_without_mongoid(options)
@@ -33,10 +21,23 @@ module Mongoid
       end
       alias_method_chain :by_star_start_field, :mongoid
 
-      protected
-
       def by_star_default_field
         :created_at
+      end
+
+      def by_star_point_query(scope, field, range)
+        scope.where(field => range)
+      end
+
+      def by_star_strict_span_query(scope, start_field, end_field, range)
+        scope.where(start_field => range).where(end_field => range)
+      end
+
+      def by_star_overlap_span_query(scope, start_field, end_field, range, options)
+        index_start = by_star_eval_index_start(range, options)
+        scope = scope.gt(end_field => range.first).lt(start_field => range.last)
+        scope = scope.gte(start_field => index_start) if index_start
+        scope
       end
 
       def before_query(time, options={})

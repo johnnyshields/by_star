@@ -131,7 +131,7 @@ Alternatively, you may set a default in your model using the `by_star_field` mac
    end
 ```
 
-### Scoping the Find
+### Scoping the Query
 
 All ByStar methods (except `oldest`, `newest`, `previous`, `next`) return `ActiveRecord::Relation` and/or
 `Mongoid::Criteria` objects, which can be daisy-chained with other scopes/finder methods:
@@ -173,10 +173,12 @@ You may also set a default scope in the `by_star_field` macro. (It is recommende
    end
 ```
 
-### :offset Option
+### `:offset` Option
 
-All ByStar finders support an `:offset` option which offsets the time period for which the query is performed.
+All ByStar finders support an `:offset` option which is applied to time period of the query condition.
 This is useful in cases where the daily cycle occurs at a time other than midnight.
+
+For example, if you'd like to find all Posts from 9:00 on 2014-03-05 until 8:59:59.999 on 2014-03-06, you can do:
 
     Post.by_day('2014-03-05', offset: 9.hours)
 
@@ -188,7 +190,7 @@ You may also set a offset scope in the `by_star_field` macro:
    end
 ```
 
-### Time-Range Type Objects
+### Timespan Objects
 
 If your object has both a start and end time, you may pass both params to `by_star_field`:
 
@@ -203,11 +205,64 @@ By default, ByStar queries will return all objects whose range has any overlap w
                                           even if they start in December and/or end in February
 ```
 
-If you'd like to confine results to starting and ending within the given range, use the `:strict` option:
+### Timespan Objects: `:strict` Option
+
+If you'd like to confine results to only those both starting and ending within the given range, use the `:strict` option:
 
 ```ruby
-   MultiDayEvent.by_month("January", strict => true)  #=> returns MultiDayEvents that both start AND end in January
+   MultiDayEvent.by_month("January", :strict => true)  #=> returns MultiDayEvents that both start AND end in January
 ```
+
+### Timespan Objects: Database Indexing and `:index_start` Option
+
+In order to ensure query performance on large dataset, it's important that:
+
+1) the query field (e.g. "created_at") be indexed. (This is left up to you, as ByStar does not define indexes automatically.)
+
+2) ByStar must use double-sided queries (e.g. "start_time >= X and <= Y") on every query.
+(If we use a one-sided query, the database will iterate through all items either from the beginning or until the end of time).
+
+Regarding item #2, there are three cases to consider. Given that we're querying from time X to time Y:
+
+A) Non-timespan (single-field) queries, e.g. "start_time >= X and <= Y". This already a double-sided query, so no further work is needed.
+
+B) Timespan (double-field) queries with `:strict` option, e.g. "start_time >= X and end_time <= Y".
+Given that this gem requires start_time >= end_time, we add the converse constraint "start_time <= Y and end_time >= X" to ensure both fields are double-sided, i.e. an index can be used on either field.
+
+C) Timespan (double-field) queries without `:strict` option, e.g. "start_time < Y and end_time > X"
+
+Case (C) is tricky. We need to add another constraint start_time >= X<sub>0</sub>, where X<sub>0</sub> <= X.
+This will require us to make some assumption about the maximum timespan of objects; in other words,
+X - X<sub>0</sub> should be **equal or longer than** the longest possible object timespan.
+
+| `:index_start` Value | Meaning |
+| `nil` or `false` | No constraint set; query will be one-sided (default, but not recommended) |
+| `Date` or `Time`, etc. | A fixed point in time |
+| `ActiveSupport::Duration` (e.g. `1.month`) | The duration value will be subtracted from the start of the range. In other words, a value of `1.month` would imply the longest possible object in the database is no longer than `1.month`. |
+| `Numeric` | Will be converted to seconds, then handled the same as `ActiveSupport::Duration` |
+| `:beginning_of_day` (`Symbol` literal) |
+| `Proc<Range, Hash(options)>` | A proc which evaluates to one of the above types |
+
+An example Procs which
+
+```
+->(range, options){ ((r.first - r.last)*0.5).seconds }
+
+
+->(range, options){ r.first.beginning_of_month + (options[:offset] || 0) }
+```
+in the cases of single-field queries and timespan (double-field) quer
+It is important to put a double
+
+
+
+A drawback of timespan objects is that you are querying each field as a one-sided condition
+(i.e. "start_time greater than X" and "end_time less than Y"), so it is not possible to do a range lookup within an index.
+This can cause severe performance degradation on large collections.
+
+To remedy this, we add a double-sided constraint on start_time.
+
+
 
 ### Chronic Support
 
@@ -227,16 +282,16 @@ To find records between two times:
    Post.between_times(time1, time2)
 ```
 
-Also works with dates:
+You use a Range like so:
+
+```ruby
+   Post.between_times(time1..time2)
+```
+
+Also works with dates - WARNING: there are currently some caveats see [Issue #49](https://github.com/radar/by_star/issues/49):
 
 ```ruby
    Post.between_times(date1, date2)
-```
-
-ActiveRecord only: `between` is an alias for `between_times`:
-
-```ruby
-   Post.between(time1, time2)  #=> results identical to between_times above
 ```
 
 ### before and after

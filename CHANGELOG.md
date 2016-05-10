@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## v3.0.0 - Unreleased
+
+* BREAKING CHANGE - The meaning of `#next_week/month/year` now means the week/month/year AFTER the current one. New `#current_week/month/year` scopes have been added in their place.
+* BREAKING CHANGE - `:order` option is now longer supported by ByStar queries. Use ActiveRecord `#order` or Mongoid `#order_by` instead.
+* BREAKING CHANGE - `#between` method has been removed for ActiveRecord.
+* `#between_times now accepts a Range as an argument`
+* Strict timespan query now sets double-sided constraints on both fields to ensure database indexes are used properly.
+* Bugfix: Default :offset is no longer applied to direct usage of `#between_times` method.
+* Bugfix: Default :offset is no longer if :field is overridden.
+
 ## v2.2.2 - Unreleased
 
 * Deprecate the `:order` option of ByStar queries, as the same can be achieved by using the order method of ActiveRecord - @johnnyshields
@@ -21,8 +31,8 @@
 
 * Add `:scope` parameter support on all finders - @pnomolos / @johnnyshields
 * Feature: Add `past_*` and `next_*` finders - @davegudge
-* Bug Fix: `:field`, `:start_field`, and `:end_field` options were being ignored on finder - @johnnyshields / @gamov
-* Bug Fix: `by_star_field` should accept options without start/end_time args - @johnnyshields
+* Bugfix: `:field`, `:start_field`, and `:end_field` options were being ignored on finder - @johnnyshields / @gamov
+* Bugfix: `by_star_field` should accept options without start/end_time args - @johnnyshields
 * Improve readme documentation - @johnnyshields
 
 ## v2.2.0.rc1 - 2014-01-14
