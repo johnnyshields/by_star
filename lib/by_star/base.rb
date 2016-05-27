@@ -64,5 +64,22 @@ module ByStar
       time = args.first || Time.zone.now
       block.call(time, options)
     end
+
+    def by_star_eval_index_scope(start_time, end_time, options)
+      value = options[:index_scope]
+      value = value.call(start_time, end_time, options) if value.is_a?(Proc)
+      case value
+        when nil, false then nil
+        when Time then value
+        when DateTime then value.to_time
+        when Date then value.in_time_zone
+        when ActiveSupport::Duration then start_time - value
+        when Numeric then start_time - value.seconds
+        when :beginning_of_day
+          offset = options[:offset] || 0
+          (start_time - offset).beginning_of_day + offset
+        else raise 'ByStar :index_scope option value is not a supported type.'
+      end
+    end
   end
 end

@@ -20,7 +20,13 @@ module ByStar
       end
 
       def by_star_span_overlap_query(scope, start_field, end_field, start_time, end_time, options)
-        scope.where("#{end_field} > ? AND #{start_field} < ?", start_time, end_time)
+
+        offset = (options[:offset] || 0).seconds
+
+        index_scope = by_star_eval_index_scope(start_time, end_time, options)
+        scope = scope.where("#{end_field} > ? AND #{start_field} < ?", start_time, end_time)
+        scope = scope.where("#{start_field} >= ?", index_scope) if index_scope
+        scope
       end
 
       def by_star_before_query(scope, field, time)

@@ -219,7 +219,7 @@ If you'd like to confine results to only those both starting and ending within t
    MultiDayEvent.by_month("January", :strict => true)  #=> returns MultiDayEvents that both start AND end in January
 ```
 
-### Timespan Objects: Database Indexing and `:index_start` Option
+### Timespan Objects: Database Indexing and `:index_scope` Option
 
 In order to ensure query performance on large dataset, you must add an index to the query field (e.g. "created_at") be indexed. ByStar does **not** define indexes automatically.
 
@@ -228,13 +228,52 @@ If we use a single-sided query, the database will iterate through all items eith
 This poses a challenge for timespan-type objects which have two fields, i.e. `start_time` and `end_time`.
 There are two cases to consider:
 
-1) Timespan with `:strict` option, e.g. "start_time >= X and end_time <= Y".
+1) Timespan with `:strict` option, e.g. `start_time >= X and end_time <= Y`.
 
-Given that this gem requires start_time >= end_time, we add the converse constraint "start_time <= Y and end_time >= X" to ensure both fields are double-sided, i.e. an index can be used on either field.
+Given that this gem requires `start_time >= end_time`, we add the converse constraint `start_time <= Y and end_time >= X` to ensure both fields are double-sided, i.e. an index can be used on either field.
 
 2) Timespan without `:strict` option, e.g. "start_time < Y and end_time > X".
 
-This is not yet supported but will be soon.
+Here we need to add a condition `start_time >= X` to ensure `start_time` is bounded on both sides.
+This will require us to make some assumption about the maximum timespan of objects; in other words,
+To achieve this, we allow an `:index_scope` option which
+
+Case (C) is tricky. We need to add another constraint start_time >= X<sub>0</sub>, where X<sub>0</sub> <= X.
+
+X - X<sub>0</sub> should be **equal or longer than** the longest possible object timespan.
+
+| `:index_scope` Value | Meaning |
+| `nil` or `false` | No constraint set; query will be one-sided (default, but not recommended) |
+| `Date` or `Time`, etc. | A fixed point in time |
+| `ActiveSupport::Duration` (e.g. `1.month`) | The duration value will be subtracted from the start of the range. In other words, a value of `1.month` would imply the longest possible object in the database is no longer than `1.month`. |
+| `Numeric` | Will be converted to seconds, then handled the same as `ActiveSupport::Duration` |
+| `:beginning_of_day` (`Symbol` literal) |
+| `Proc<Range, Hash(options)>` | A proc which evaluates to one of the above types |
+
+An example Procs which
+
+```
+# The maximum possible object length is 5 hours
+by_star index_scope: 5.hours
+
+### HOW IS OFFSET HANDLED
+
+# ###
+by_star index_scope: ->(start_time, end_time, options){ start_time.beginning_of_month + (options[:offset] || 0) }
+
+# The maximum possible object length is 5 hours
+by_star index_scope: ->(start_time, end_time, options){ ((start_time - end_time)*0.5).seconds }
+```
+in the cases of single-field queries and timespan (double-field) quer
+It is important to put a double
+
+
+
+A drawback of timespan objects is that you are querying each field as a one-sided condition
+(i.e. "start_time greater than X" and "end_time less than Y"), so it is not possible to do a range lookup within an index.
+This can cause severe performance degradation on large collections.
+
+To remedy this, we add a double-sided constraint on start_time.
 
 
 ### Chronic Support
